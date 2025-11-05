@@ -1,0 +1,33 @@
+[project]
+name = "c2c"
+version = "0.1.0"
+description = "The ultimate MCP - unlocking self-organising agents via agent to agent communication"
+readme = "README.md"
+authors = [
+    { name = "lucharo", email = "lucharo.dev@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "claude-agent-sdk>=0.1.6",
+    "mcp>=1.3.5",
+]
+
+[project.scripts]
+c2c = "c2c.mcp:main"
+
+[build-system]
+requires = ["uv_build>=0.9.7,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.32.1",
+    "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
+    "ruff>=0.14.3",
+]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+reportUnusedParameter = false
+reportUnusedCallResult = false
