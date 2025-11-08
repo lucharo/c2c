@@ -37,3 +37,35 @@ The following concepts are useful to understand how `c2c` works.
 - `end_session(session_id)`: disconnect agent, conversation history is maintained.
 - `list_conversations()`: lists all conversations
 - `list_sessions()`: lists all sessions
+
+## Authenticaton & environment variables
+
+Whatever agent you spawn from within a Claude Code session will you use the authetication method set for the parent.
+
+Claude Code seems to set up a few environment variables when it starts, among them:
+
+```sh
+CLAUDECODE=1
+CLAUDE_CODE_ENTRYPOINT=cli
+```
+
+`claude-agent-sdk` can pick these up and use the Claude Code authentication mode (e.g. login via subscription) if `ANTHROPIC_API_KEY` is missing.
+
+More over, if any environment variables are defined in `~/.claude/settings.json` such as:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "<<ZAI_API_KEY>>",
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+    "API_TIMEOUT_MS": "3000000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.6",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-4.6"
+  },
+  "alwaysThinkingEnabled": true
+}
+```
+
+for z.ai authentication, they will be picked up too.

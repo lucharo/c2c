@@ -1,11 +1,9 @@
 """c2c: Claude Code to Claude Code Communication
 
 MCP server for spawning and managing Claude agents.
-
-Simple POC - just 7 tools, hardcoded config, works great!
 """
 
-from .mcp import mcp
-from .manager import manager
+# Export the MCP server for compatibility
+from .mcp import app as mcp
 
-__all__ = ["mcp", "manager"]
+__all__ = ["mcp"]

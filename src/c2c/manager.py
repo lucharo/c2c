@@ -1,45 +1,38 @@
-"""Simple C2C Manager - hardcoded everything for POC"""
+"""Simple C2C Manager - Unified conversation model (matching c2c_dev pattern)"""
 
+import asyncio
 import uuid
 from pathlib import Path
 from datetime import datetime
-from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions, HookMatcher
+from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
 
 
 class C2CManager:
-    """Dead simple manager for conversations and sessions"""
+    """Simple manager with unified conversation model (no separate sessions)"""
 
     def __init__(self) -> None:
-        # conversation_id -> {task: str, history: list[dict], session_ids: list[str]}
-        self.conversations: dict[str, dict] = {}
-        # session_id -> {conversation_id: str, client: ClaudeSDKClient, active: bool}
-        self.sessions: dict[str, dict] = {}
+        # Active conversations: conversation_id -> {client, history, metadata}
+        self.active: dict[str, dict] = {}
 
     def _sanitise_task_name(self, task_name: str) -> str:
         """Sanitize task name for use in IDs"""
-        # Remove spaces, convert to lowercase, keep alphanumeric and dashes
         return "".join(c if c.isalnum() or c == "-" else "-" for c in task_name.lower()).strip("-")
 
-    def create_conversation(self, task_name: str, task_description: str) -> str:
-        """Create a new conversation with a name and description"""
+    async def create_conversation(self, task_name: str, task_description: str) -> str:
+        """Create a new conversation and start Agent SDK client
+
+        Args:
+            task_name: Short name for the task (used in ID)
+            task_description: Full description/prompt for the agent
+
+        Returns:
+            conversation_id string
+        """
+        # Generate conversation ID
         sanitised_name = self._sanitise_task_name(task_name)
         conversation_id = f"conv_{sanitised_name}_{uuid.uuid4().hex[:8]}"
-        self.conversations[conversation_id] = {
-            "task_name": task_name,
-            "task_description": task_description,
-            "history": [],
-            "session_ids": [],
-        }
-        return conversation_id
 
-    async def start_session(self, conversation_id: str) -> str:
-        """Start a new session for a conversation"""
-        if conversation_id not in self.conversations:
-            raise ValueError(f"Conversation {conversation_id} not found")
-
-        session_id = f"sess_{uuid.uuid4().hex[:8]}"
-
-        # Create agent client with hardcoded config
+        # Create Agent SDK client
         options = ClaudeAgentOptions(
             cwd=Path.cwd(),
             continue_conversation=True,
@@ -49,82 +42,73 @@ class C2CManager:
         )
         client = ClaudeSDKClient(options)
 
-        # Link session to conversation
-        self.conversations[conversation_id]["session_ids"].append(session_id)
-
-        # Connect client immediately
+        # Connect client
         await client.connect()
 
-        # Store session after connecting
-        self.sessions[session_id] = {
-            "conversation_id": conversation_id,
+        # Store conversation
+        self.active[conversation_id] = {
             "client": client,
-            "active": True,
-            "connected": True,  # Now connected
+            "task_name": task_name,
+            "task_description": task_description,
+            "history": [],
+            "created_at": datetime.now(),
+            "status": "active",
         }
 
-        # Get task description from conversation data
-        task_description = self.conversations[conversation_id]["task_description"]
-
-        # Send initial task description to start conversation (async - don't wait for response)
+        # Send initial task (async - don't wait for response)
         await client.query(task_description)
 
-        # Store initial task in conversation history
-        self.conversations[conversation_id]["history"].append(
-            {"role": "user", "content": task_description}
-        )
+        # Store initial user message in history
+        self.active[conversation_id]["history"].append({
+            "role": "user",
+            "content": task_description,
+            "timestamp": datetime.now().isoformat()
+        })
 
-        return session_id
+        return conversation_id
 
-    async def create_conversation_and_start_session(self, task_name: str, task_description: str) -> str:
-        """Convenience: create conversation and start session"""
-        conversation_id = self.create_conversation(task_name, task_description)
-        return await self.start_session(conversation_id)
+    async def resume_conversation(self, conversation_id: str) -> str:
+        """Resume an existing conversation (placeholder for future storage integration)
 
-    async def send_message(self, session_id: str, message: str) -> str:
-        """Send a message to a session (async, fire-and-forget)"""
-        if session_id not in self.sessions:
-            raise ValueError(f"Session {session_id} not found")
+        Args:
+            conversation_id: The conversation to resume
 
-        session = self.sessions[session_id]
-        if not session["active"]:
-            raise ValueError(f"Session {session_id} is not active")
+        Returns:
+            conversation_id string
+        """
+        # TODO: Load from storage, create new client, restore history
+        raise NotImplementedError("Resume conversation not yet implemented - needs storage integration")
 
-        client = session["client"]
-        conversation_id = session["conversation_id"]
+    async def send_message_and_receive_response(self, conversation_id: str, message: str) -> str:
+        """Send a message and immediately receive response (following official Agent SDK pattern)
 
-        # Connect client if not connected yet
-        if not session.get("connected", False):
-            await client.connect()
-            session["connected"] = True
+        Args:
+            conversation_id: The conversation to send message to
+            message: The message content
 
-        # Send message to agent (async - don't wait for response)
-        await client.query(message)
+        Returns:
+            The agent's response string
+        """
+        if conversation_id not in self.active:
+            raise ValueError(f"Conversation {conversation_id} not found or not active")
+
+        conversation = self.active[conversation_id]
+        client = conversation["client"]
 
         # Store user message in conversation history
-        self.conversations[conversation_id]["history"].append(
-            {"role": "user", "content": message}
-        )
+        conversation["history"].append({
+            "role": "user",
+            "content": message,
+            "timestamp": datetime.now().isoformat()
+        })
 
-        return f"Message sent to session {session_id}"
-
-    async def receive_response(self, session_id: str) -> str:
-        """Receive and collect the agent's response from a session"""
-        if session_id not in self.sessions:
-            raise ValueError(f"Session {session_id} not found")
-
-        session = self.sessions[session_id]
-        if not session["active"]:
-            raise ValueError(f"Session {session_id} is not active")
-
-        client = session["client"]
-        conversation_id = session["conversation_id"]
-
-        # Collect response from async iterator with proper termination conditions
+        # Send message and collect response immediately (official Agent SDK pattern)
         response_parts = []
         response_complete = False
         message_count = 0
         max_messages = 10  # Prevent infinite loops
+
+        await client.query(message)
 
         async for response_message in client.receive_response():
             message_count += 1
@@ -148,45 +132,49 @@ class C2CManager:
 
         response = "".join(response_parts)
 
-        # Store assistant response in conversation history
-        self.conversations[conversation_id]["history"].append(
-            {"role": "assistant", "content": response}
-        )
+        # Store agent response in conversation history
+        conversation["history"].append({
+            "role": "assistant",
+            "content": response,
+            "timestamp": datetime.now().isoformat()
+        })
 
         return response
 
-    def end_session(self, session_id: str) -> bool:
-        """End a session (keeps conversation history)"""
-        if session_id not in self.sessions:
-            return False
+    async def end_conversation(self, conversation_id: str) -> None:
+        """End a conversation (cleanup, no storage yet)
 
-        self.sessions[session_id]["active"] = False
-        return True
+        Args:
+            conversation_id: The conversation to end
+        """
+        if conversation_id not in self.active:
+            raise ValueError(f"Conversation {conversation_id} not found or not active")
+
+        conversation = self.active[conversation_id]
+
+        # TODO: Save to persistent storage here
+
+        # Clean up
+        del self.active[conversation_id]
 
     def list_conversations(self) -> list[dict]:
-        """List all conversations with their metadata"""
+        """List all active conversations
+
+        Returns:
+            List of conversation metadata dicts
+        """
         return [
             {
                 "conversation_id": conv_id,
                 "task_name": conv_data["task_name"],
                 "task_description": conv_data["task_description"],
                 "message_count": len(conv_data["history"]),
-                "session_count": len(conv_data["session_ids"]),
+                "status": conv_data["status"],
+                "created_at": conv_data["created_at"].isoformat(),
             }
-            for conv_id, conv_data in self.conversations.items()
-        ]
-
-    def list_sessions(self) -> list[dict]:
-        """List all sessions with their metadata"""
-        return [
-            {
-                "session_id": sess_id,
-                "conversation_id": sess_data["conversation_id"],
-                "active": sess_data["active"],
-            }
-            for sess_id, sess_data in self.sessions.items()
+            for conv_id, conv_data in self.active.items()
         ]
 
 
-# Global singleton instance - POC style!
+# Global singleton instance
 manager = C2CManager()
