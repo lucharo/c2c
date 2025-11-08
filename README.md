@@ -20,23 +20,16 @@ claude mcp add c2c -- uv run c2c
 
 ## Concepts
 
-The following concepts are useful to understand how `c2c` works.
-
-- Conversations: refer to the entire exchange of messages between two agents. This includes the conversation history. Conversations can be created and resumed.
-- Sessions: are created from conversations, they can be started from a conversation, ended and messages can be sent to a session. Note, messages are not sent to a conversation, they are sent to a session which is itself "connected" to a conversation.
+Conversations refer to the entire exchange of messages between agents, including the full conversation history. Conversations can be created, messaged, and ended.
 
 ## Tools
 
-`c2c` exposes 8 core tools:
+`c2c` exposes 4 core tools:
 
-- `create_conversation(task_name, task_description)`: this returns a `conversation_id` and generates some metadata to link the parent agent to the child agent
-- `start_session(conversation_id)`: this returns a `session_id` that `send_message` and `end_session` can leverage and creates an agent client in the background.
-- `create_conversation_and_start_session(task_name, task_description)`: combines `create_conversation` and `start_session`
-- `send_message(session_id, "rewrite in rust following best practices")`: sends a message to an agent asynchronously for a given `session_id` and returns immediately. The agent processes the message in the background.
-- `receive_response(session_id)`: waits for and collects the agent's response from a session. Use this after `send_message` to get what the agent said back.
-- `end_session(session_id)`: disconnect agent, conversation history is maintained.
-- `list_conversations()`: lists all conversations
-- `list_sessions()`: lists all sessions
+- `create_conversation(task_name, task_description)`: creates a new conversation and returns a `conversation_id`
+- `send_message_and_receive_response(conversation_id, message)`: sends a message to a conversation and returns the agent's response
+- `end_conversation(conversation_id)`: ends a conversation and cleans up resources
+- `list_conversations()`: lists all active conversations with their status and message counts
 
 ## Authenticaton & environment variables
 
@@ -69,3 +62,24 @@ More over, if any environment variables are defined in `~/.claude/settings.json`
 ```
 
 for z.ai authentication, they will be picked up too.
+
+## Development
+
+`c2c_dev.py` is a completely vibecoded version that uses `c2c.conversation_storage.py` (also vibecoded) that seems to do the job, as it can spawn several sub-agents (all using main claude code) without blocking the main agent.
+
+you can install the `c2c-dev` mcp by running:
+
+```sh
+claude mcp add c2c -- uv run c2c_dev.py
+```
+
+## Requirements/goals
+
+- [ ] Claude Code can spawn other Claude Code subagents via `claude-agent-sdk`+ MCP
+- [ ] agent parent-child conversations used same logging system as main claude code, i.e. `~/.claude/projects/...`
+- [ ] lineage of sub agents is tracked (parent_id, depth...)
+- [ ] subagents can spawn subagents
+- [ ] UI to visualise graph of agents
+- [ ] UI to jump into any conversation, if we can leverage `claude --resume session_id` better
+- [ ] permission handling upon agent creation or mid-conversation
+- [ ] model specification handling upon agent creation or mid-conversation
