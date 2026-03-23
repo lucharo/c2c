@@ -1,5 +1,9 @@
 # c2c - Claude Code to Claude Code MCP server
 
+> **Archived.** This project was an early exploration (Oct/Nov 2025) of agent-to-agent communication — agents spawning sub-agents on demand, forming hierarchies autonomously, while humans could tap into any level of the conversation tree. This thinking predated similar patterns that later emerged in [Claude's agent teams](https://docs.anthropic.com/en/docs/claude-code/teams), [OpenAI Codex's multi-agent support](https://openai.com/index/codex/), and [Google's A2A protocol](https://google.github.io/A2A/). The ideas and learnings from c2c have since been folded into [**mainthread**](https://github.com/lucharo/mainthread).
+
+---
+
 > Self-organising agents, parallel agents tasks, recursive agents — all managed by the `c2c` MCP
 
 ## What is it?
