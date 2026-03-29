@@ -67,18 +67,31 @@ async def list_tools():
 @app.call_tool()
 async def call_tool(name: str, arguments: dict):
     """Handle tool calls - directly call manager methods"""
+    import sys
+    print(f"[C2C MCP] Received tool call: {name}", file=sys.stderr, flush=True)
+    print(f"[C2C MCP] Arguments: {arguments}", file=sys.stderr, flush=True)
+
     try:
         if name == "create_conversation":
+            print(f"[C2C MCP] Calling manager.create_conversation...", file=sys.stderr, flush=True)
             conversation_id = await manager.create_conversation(
                 arguments["task_name"],
                 arguments["task_description"]
             )
-            return {
+            print(f"[C2C MCP] Got conversation_id: {conversation_id}", file=sys.stderr, flush=True)
+
+            result = {
                 "content": [{
                     "type": "text",
-                    "text": f"Created conversation {conversation_id} - {arguments['task_name']}: {arguments['task_description']}"
+                    "text": f"""Conversation {conversation_id} created successfully!
+
+Task description: {arguments['task_description']}
+
+Use send_message_and_receive_response with conversation_id '{conversation_id}' and the task description as the message to start the agent."""
                 }]
             }
+            print(f"[C2C MCP] Returning result to Claude Code", file=sys.stderr, flush=True)
+            return result
 
         elif name == "send_message_and_receive_response":
             response = await manager.send_message_and_receive_response(
