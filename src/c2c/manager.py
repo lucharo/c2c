@@ -28,44 +28,47 @@ class C2CManager:
         Returns:
             conversation_id string
         """
-        # Generate conversation ID
-        sanitised_name = self._sanitise_task_name(task_name)
-        conversation_id = f"conv_{sanitised_name}_{uuid.uuid4().hex[:8]}"
+        async def _internal():
+            # Generate conversation ID
+            sanitised_name = self._sanitise_task_name(task_name)
+            conversation_id = f"conv_{sanitised_name}_{uuid.uuid4().hex[:8]}"
 
-        # Create Agent SDK client
-        options = ClaudeAgentOptions(
-            cwd=Path.cwd(),
-            continue_conversation=True,
-            permission_mode="acceptEdits",
-            allowed_tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
-            hooks={},
-        )
-        client = ClaudeSDKClient(options)
+            # Create Agent SDK client
+            options = ClaudeAgentOptions(
+                cwd=Path.cwd(),
+                continue_conversation=True,
+                permission_mode="acceptEdits",
+                allowed_tools=["Read", "Write", "Edit", "Bash", "Glob", "Grep"],
+                hooks={},
+            )
+            client = ClaudeSDKClient(options)
 
-        # Connect client
-        await client.connect()
+            # Connect client
+            await client.connect()
 
-        # Store conversation
-        self.active[conversation_id] = {
-            "client": client,
-            "task_name": task_name,
-            "task_description": task_description,
-            "history": [],
-            "created_at": datetime.now(),
-            "status": "active",
-        }
+            # Store conversation
+            self.active[conversation_id] = {
+                "client": client,
+                "task_name": task_name,
+                "task_description": task_description,
+                "history": [],
+                "created_at": datetime.now(),
+                "status": "active",
+            }
 
-        # Send initial task (async - don't wait for response)
-        await client.query(task_description)
+            # Send initial task (async - don't wait for response)
+            await client.query(task_description)
 
-        # Store initial user message in history
-        self.active[conversation_id]["history"].append({
-            "role": "user",
-            "content": task_description,
-            "timestamp": datetime.now().isoformat()
-        })
+            # Store initial user message in history
+            self.active[conversation_id]["history"].append({
+                "role": "user",
+                "content": task_description,
+                "timestamp": datetime.now().isoformat()
+            })
 
-        return conversation_id
+            return conversation_id
+
+        return await asyncio.wait_for(_internal(), timeout=30)
 
     async def resume_conversation(self, conversation_id: str) -> str:
         """Resume an existing conversation (placeholder for future storage integration)
